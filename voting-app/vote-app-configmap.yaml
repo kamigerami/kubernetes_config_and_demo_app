@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  ports:
+    # the port that this service should serve on
+  - port: 6379
+    targetPort: 6379
+  selector:
+    app: redis
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis  # or just image: redis
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: postgres
+spec:
+  ports:
+    # the port that this service should serve on
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: db
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: db
+        image: postgres:9.4
+        ports:
+        - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vote
+  labels:
+    app: vote
+spec:
+  # type: LoadBalancer
+  ports:
+    # the port that this service should serve on
+  - port: 80
+  selector:
+    app: vote
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: vote
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vote
+    spec:
+      containers:
+      - name: vote
+        image: vote_app:2.0
+        env:
+        - name: OPTION_A
+          valueFrom: 
+            configMapKeyRef:
+              name: vote-options
+              key: option.a
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  # type: LoadBalancer
+  selector:
+    app: vote
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: worker_app:2.0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: result
+  labels:
+    app: result
+spec:
+  # type: LoadBalancer
+  ports:
+    # the port that this service should serve on
+  - name: http
+    protocol: TCP
+    port: 80
+  - name: node
+    protocol: TCP
+    port: 5858
+  selector:
+    app: result
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: result
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: result
+    spec:
+      containers:
+      - name: result
+        image: result_app:2.0
+        ports:
+        - containerPort: 80
+        - containerPort: 5858

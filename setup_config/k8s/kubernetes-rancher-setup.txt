@@ -1,0 +1,174 @@
+
+
+Kubernetes POC
+-------------------
+
+PODS - in a pre-container world they would have executed on the same physical / virtual machine
+- a group of one or more containers, 
+- shared storage of those containers ( volumes ), 
+- options on how to run the containers,
+- containers share IP and port space and can find each other via localhost
+- same network namespace,
+- communication done via IPC (inter process comunication)
+- containers in other pods can NOT communicate via IPC
+- created and assigned a unique UID
+
+- if node dies - pods are deleted from that node after x time. Pod is not rescheduled to a new node; 
+it can be replaced by an identical pod but with a new UID.
+
+
+2 Container probes (LivenessProbe / ReadinessProbe) - 3 handlers : 
+HTTPGetAction (200 ok), 
+TCPSocketAction, 
+ExecAction (command run with status code 0)
+
+
+Selectors and labels 
+---------------------------------------
+labels are used together with selectors to manage objects and groups of objects.
+label selectors don't know the number of objects that carry a label.
+
+- equality based selector : key/value pair to filter based on equality.
+- set based selector : allows filtering keys according to set values.
+
+
+Controllers
+-------------
+Job Controller - Pods which are expected to terminate (for example: batch computations ) : RestartPolicy = OnFailure / Never
+
+Replication Controller - Pods which are NOT expected to terminate (for example: web servers): RestartPolicy = Always
+good for frontends and to run on nodes where stateless is good.
+
+DaemonSet Controller - Pods which need to run 1 per machine because they provide machine-specific system service.
+example: glusterd, cepth, fluentd, logstash daemon, prometheus, collectd or something similar.
+
+DaemonSet will ensure that all (or some) nodes run a copy of a pod wit hthe DaemonSet controller.
+
+
+Create controller --> via PodTemplate --> it will create a POD 
+
+- Resilient to machine-failure
+
+
+Replica Sets :
+A replica set ensures that a specific number of pod instances (replicas) are running at any given time.
+It will take care of recheduling of your pod. (even if node dies)
+
+It can also manage a group of different pods selected using a common label.
+
+A replica set can be included in the pod directly however deployments can handle it.
+ 
+Deployments manages replica sets.
+------------------------------------
+with deployments you can do rolling-updates.
+
+
+
+
+Networking
+----------------
+* default Docker way 
+- uses host-private networking. 
+- Creates a virtual bridge, docker0, 172.x.x.x
+- Allocates a subnet from a private address block for that bridge.
+- Each container allocates a virutal ethernet device veth attached to the bridge.
+- In the container - the veth is appearing as eth0 (using linux namespace)
+- The eth0 in container is given an ip address from the bridges address range 172.x.x
+
+Containers can talk to other containers only if they are on the same machine (using same virtual bridge).
+To be able to communicate across nodes they need to be allocated ports on the machines own IP address (port mapping)
+proxied to the container.
+
+* Kubernetes way
+- All containers can communicate with all other containers without NAT (network address translation)
+- All nodes can communicate with all containers ( vice-versa ) without NAT.
+- The IP that a container has it the same IP as others sees it as.
+
+
+Networking Model (overlay / virtual network)
+------------------
+Weave Net 
+Flannel -> ipv4 network, CIDR format , backend -> udp / vxlan
+OpenVSwitch
+Calico ###################
+Romana (SDN)
+Contiv (native I3, BGP, overlay med VXlan)
+
+## VXLAN uses extends vlan capabilities
+- overlay solution to extend layer-2 connectivity over layer-3 segments.
+
+
+-  IP in a flat shared networking namespace that has full communication with other physical computers and containers across the network
+
+
+
+ ## Backup / Recovery ? ##
+- how do we re-create the clusters and spin up new ones in case of Disaster
+
+
+### manage manifests ? ###
+
+manifests files -> submitted to API server
+generic manifests - version controller
+deployment specific manifests -> version controll separate for OPs
+Secrets <- not version controlled
+
+---------------------------- SETUP ---------------------------------------
+
+### setup / Architechture ###
+
+- etcd - 5 node cluster minimum!! High availability - heart of everything (distributed key-value store)
+- Quorom maintaineance very difficult if you have less!
+
+
+Master node -> etcd(service discovery), flanneld, kubernetes master, kubelet
+- hosts API server (kube-apiserver)
+- orchestrates work ( kube-controller-manager / kube-scheduler)
+
+
+Worker node ->  flanneld, kubelet (interacts with docker), user pods
+- receives work from master
+- kubelet ( process watcher) , proxy(NAT), cadvisor + docker (1.10)
+
+### 
+kubectl apply -f https://git.io/weave-kube
+###
+
+
+### Rancher - management platform for containers ###
+- orchestration distribution platform for managing containers as a cluster - kubernetes
+
+### Minimum requirements SETUP RANCHER ###
+Docker 1.10
+RHEL 7 -> direct-lvm mode for production (devicemapper storage driver) ||allocate-on-demand not good for lots of small writes
+
+# MySQL #
+server should have a max_connections setting > 150 (with fast disks || 50 connections per rancher node)
+Option 1: Run with Antelope with default of COMPACT ( InnoDB storage engine )
+Option 2: Run MySQL 5.7 with Barracuda where the default ROW_FORMAT is Dynamic (InnoDB)
+For true HA, a replicated MySQL database with proper backups is recommended. 
+Using Galera and forcing writes to a single node, due to transaction locks, would be an alternative.
+
+# LB #
+Configure an external load balancer that will balance traffic on ports 80 and 443 across a pool of nodes that will be running Rancher server.
+Your load balancer must support websockets and forwarded-for headers, in order for Rancher to function properly
+
+## ports ## 
+Global Access: TCP Ports 22 , 80, 443, 18080, 8080
+Access between nodes:
+UDP Ports 500, 4500
+TCP Ports: 2181, 2376, 2888, 3888,6379
+
+## load balancing ##
+Host-based - single public IP - traffic based on request coming in.
+Url-based routing- based on url-path /x /y
+
+
+
+// secrets - 
+
+
+TODO:
+
+skissa hårdvaru krav för POC
+

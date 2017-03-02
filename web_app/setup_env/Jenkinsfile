@@ -1,0 +1,15 @@
+node {
+  stage ('check-out') {
+checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '37789ad3-30cb-4aef-9218-3b05a6f5958e', url: 'ssh://git@stash.example.com:7999/~kamger/kubernetes.git']]])
+  }
+
+  stage ('Create env') {
+    echo 'Creating environment'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/namespaces'
+    sh 'sleep 10'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/secrets'
+    sh 'sleep 10'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/ingress-controller'
+  }
+
+}

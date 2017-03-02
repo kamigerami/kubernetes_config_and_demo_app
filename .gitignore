@@ -1,0 +1,15 @@
+.vagrant
+.ssh
+.bash*
+docker/aem
+docker/.bash*
+
+# IntelliJ
+.idea/
+*.iml
+
+# Eclipse
+.settings
+.project
+.classpath
+

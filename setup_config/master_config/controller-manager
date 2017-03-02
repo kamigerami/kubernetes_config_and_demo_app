@@ -1,0 +1,8 @@
+###
+# The following values are used to configure the kubernetes controller-manager
+
+# defaults from config and apiserver should be adequate
+
+# Add your own!
+KUBE_CONTROLLER_MANAGER_ARGS="--service_account_private_key_file=/srv/kubernetes/server.key --root-ca-file=/srv/kubernetes/ca.crt --pod-eviction-timeout=30s"
+KUBELET_ADDRESSES="--machines=dkubnod2u.example.com,url1u.example.com,url2u.example.com"

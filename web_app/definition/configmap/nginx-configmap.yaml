@@ -1,0 +1,50 @@
+apiVersion: v1
+data:
+  nginx.conf: |+
+    events {
+        worker_connections 1024;
+    }
+    env HOSTNAME;
+    env MY_SECRET;
+
+    http {
+        default_type 'text/plain';
+        # maximum allowed size of the client request body. By default this is 1m.
+        # Request with bigger bodies nginx will return error code 413.
+        # http://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size
+        client_max_body_size 10m;
+        server {
+            # please check the benefits of reuseport https://www.nginx.com/blog/socket-sharding-nginx-release-1-9-1
+            # basically instructs to create an individual listening socket for each worker process (using the SO_REUSEPORT
+            # socket option), allowing a kernel to distribute incoming connections between worker processes.
+            listen 8080 default_server reuseport;
+
+            # Replace '_' with your hostname.
+            server_name _;
+
+            location / {
+                lua_need_request_body on;
+                content_by_lua_block {
+                     ngx.say("CLIENT VALUES:")
+                     ngx.say("client_address=", ngx.var.remote_addr)
+                     ngx.say("command=", ngx.req.get_method())
+                     ngx.say("request_uri=", ngx.var.scheme.."://"..ngx.var.host..":"..ngx.var.server_port..ngx.var.request_uri)
+                     ngx.say("")
+
+                     ngx.say("SERVER VALUES:")
+                     ngx.say("server_version=", "nginx: "..ngx.var.nginx_version.." - lua: "..ngx.config.ngx_lua_version)
+                     ngx.say("")
+
+                     ngx.say("ENV VALUES RECEIVED:")
+                     ngx.say("HOST: ", os.getenv("HOSTNAME"));
+                     ngx.say("SECRET: ", os.getenv("MY_SECRET"));
+                     ngx.say("")
+
+                }
+            }
+        }
+    }
+
+kind: ConfigMap
+metadata:
+  name: nginx-conf

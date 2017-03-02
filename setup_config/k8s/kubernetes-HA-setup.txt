@@ -1,0 +1,180 @@
+KUBERNETES - HIGH AVAILABILITY CLUSTER - PROD STYLE + CALICO CNI PLUGIN
+------------------------------------------------------------------------------
+guide : 
+http://kubernetes.io/docs/admin/high-availability/
+
+
+MASTER NODE 
+-----------
+
+
+Install kubelet binary, init file and default kubelet
+https://github.com/kubernetes/kubernetes/releases (https://storage.googleapis.com/kubernetes-release/release/v0.19.3/bin/linux/amd64/kubelet)
+http://releases.k8s.io/master/cluster/saltbase/salt/kubelet/initd
+http://kubernetes.io/docs/admin/high-availability/default-kubelet
+
+ *** 3 node(master) etcd cluster ***
+https://github.com/coreos/etcd/blob/master/Documentation/op-guide/clustering.md
+
+KUBE_CLUSTER_DNS_IP=
+KUBE_CLUSTER_DOMAIN=
+
+# get token
+ETCD_DISCOVERY_TOKEN=`curl -s -k https://discovery.etcd.io/new?size=3 | cut -d"/" -f4`
+ETCD_STORAGE_PATH=/var/etcd/data
+NODE_NAME=inventory_hostname
+NODE_IP=hostvars[inventory_hostname][ansible_ipv4_address]
+
+
+# use yaml file
+http://kubernetes.io/docs/admin/high-availability/etcd.yaml
+KUBE_YML_PATH=/etc/kubernetes/manifests/etcd.yaml
+kubelet actively monitors directory and creates instances of the yml files there
+
+*** next install apiserver ***
+
+KUBE_LOG_PATH=/var/log/kube-apiserver.log
+KUBE_SRV_PATH=/srv/kubernetes/
+
+
+
+WORKER NODES
+------------
+systemctl enable kubelet // systemctl enable docker
+
+
+
+################## MASTER NODE #######################
+for SERVICES in etcd flanneld kube-apiserver kube-controller-manager kube-scheduler;
+    do echo --- $SERVICES --- ; systemctl is-active $SERVICES ;
+    systemctl is-enabled $SERVICES ; echo "";  done
+
+########### WORKER NODE ####################
+for SERVICES in flanneld docker kube-proxy.service kubelet.service; \
+do echo --- $SERVICES --- ; systemctl is-active $SERVICES ; \
+systemctl is-enabled $SERVICES ; echo "";  done
+
+
+### DOCKER OPTS 
+storage driver = overlay
+iptables = false
+selinux = false
+ip_forward = false
+ip masq = false
+
+## FLANNELD 
+fix Environmentfile to point against /etc/sysconfig/docker-network
+"-iface=eth0 --ip-masq"
+
+
+# ADDONS
+https://github.com/kubernetes/kubernetes/tree/master/cluster/gce/coreos/kube-manifests/addons/dashboard
+
+Generate certificates for API server ###
+http://kubernetes.io/docs/admin/authentication/#static-token-file
+# generate token keuy for controller-maanger
+https://github.com/kubernetes/kubernetes/issues/11355#issuecomment-127378691
+
+## change kubelet infrastructure container to use pause:2.0 
+
+## add kube-dns packages 
+https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/dns
+or
+https://github.com/kubernetes/kubernetes/tree/master/cluster/gce/coreos/kube-manifests/addons/dns
+## add to kubelet args on node
+KUBELET_ARGS="--cluster-dns=10.0.0.10 --cluster-domain=cluster.local"
+
+## api server args
+KUBE_API_ARGS="--service_account_key_file=/srv/kubernetes/server.key --client-ca-file=/src/kubernetes/ca.crt --tls-cert-file=/srv/kubernetes/server.cert --tls-private-key-file=/srv/kubernetes/server.key"
+--runtime-config=extensions/v1beta1/daemonsets=true
+
+## controller args
+KUBE_CONTROLLER_MANAGER_ARGS="--service_account_private_key_file=/srv/kubernetes/server.key --root-ca-file=/srv/kubernetes/ca.crt"
+
+##### flanneld args #######
+FLANNEL_ETCD_ENDPOINTS="http://url.example.com:2379"
+# etcd config key.  This is the configuration key that flannel queries
+# For address range assignment
+FLANNEL_ETCD_PREFIX="/flannel/network"
+# Any additional options that you want to pass
+FLANNEL_OPTIONS="-iface eth0"
+
+###############
+
+#### WEAVE SCOPE
+
+CHECKPOINT_DISABLE=true scope launch 172.27.18.7 172.27.18.10 172.27.22.20 172.27.22.7
+
+
+## create ca certs
+https://github.com/kubernetes/kubernetes/blob/master/cluster/saltbase/salt/generate-cert/make-ca-cert.sh
+https://github.com/kubernetes/kubernetes/issues/10265#issuecomment-117267504
+https://raw.githubusercontent.com/kubernetes/kubernetes/master/cluster/saltbase/salt/generate-cert/make-ca-cert.sh
+#./make-ca-cert.sh 172.27.18.7 IP:172.27.18.7,IP:10.0.0.1,DNS:kubernetes,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.cluster.local
+
+
+
+
+
+
+https://keithtenzer.com/2015/06/01/application-containers-kubernetes-and-docker-from-scratch/
+
+
+
+url
+
+yum install etcd kubernetes flannel
+
+
+
+
+
+############
+TROUBLESHOOTING ####
+https://github.com/kubernetes/kubernetes/issues/10265#issuecomment-117267504
+
+kubectl get serviceaccount default
+
+kubectl get secret $(kubectl get serviceaccount default -o template --template '{{(index .secrets 0).name}}')
+
+echo -ne "token: "; test -n "$(kubectl get secret $(kubectl get serviceaccount default -o template --template '{{(index .secrets 0).name}}') -o template --template '{{index .data "token"}}')" && echo yes || echo no
+
+echo -ne "ca.crt: "; test -n "$(kubectl get secret $(kubectl get serviceaccount default -o template --template '{{(index .secrets 0).name}}') -o template --template '{{index .data "ca.crt"}}')" && echo yes || echo no
+
+echo -ne "pod has secret: "; [[ $(kubectl get pod -l "k8s-app=kube-dns" --all-namespaces -o template --template "{{len (index .items 0).spec.volumes}}") -ge 1 ]] && echo yes || echo no
+
+
+##delete secrets##
+
+
+
+### kubeconfig
+http://kubernetes.io/docs/user-guide/kubeconfig-file/
+
+kubectl config set-cluster url.example.com \
+    --server=http://172.27.18.7 \
+    --certificate-authority=/srv/kubernetes/ca.crt \
+    --embed-certs=true \
+	--kubeconfig=~/.kube/config
+	
+## unsecure
+kubectl config set-cluster url.example.com \
+    --server=http://172.27.18.7 \
+    --insecure-skip-tls-verify=true \
+    --kubeconfig=~/.kube/config
+	
+# create user entry
+$ kubectl config set-credentials default \
+    --username=kamger \
+    --password=kamger \
+    --client-certificate=/srv/kubernetes/kubecfg.crt \
+    --client-key=/srv/kubernetes/kubecfg.key \
+    --embed-certs=true \
+    --kubeconfig=~/.kube/config
+
+# create context entry
+$ kubectl config set-context $CONTEXT_NAME \
+    --cluster=$CLUSTER_NICK \
+    --user=$USER_NICK \
+    --kubeconfig=/path/to/standalone/.kube/config	
+	

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: filebeat
+data:
+  filebeat.yml: |
+    output.kafka:
+      enabled: true
+      hosts:
+        - elkurl1u.example.com:9093
+        - elkurl2u.example.com:9093
+        - elkurl3u.example.com:9093
+      topic: kubernetes
+      compression: gzip
+      max_message_bytes: 1000000
+      required_acks: 1
+      ssl:
+        enabled: true
+        verification_mode: none
+        certificate_authorities:
+          - /etc/pki/tls/certs/puppet-ca-bundle.pem
+        certificate: "/var/lib/puppet/ssl/certs/client.pem"
+        key: "/var/lib/puppet/ssl/private_keys/client.pem"
+
+    filebeat:
+      prospectors:
+      - input_type: log
+        paths:
+          - /var/log/containers/*log
+        encoding: plain
+        fields:
+          type: kuberneteslogs
+        fields_under_root: false
+        document_type: log
+        scan_frequency: 10s
+        harvester_buffer_size: 16384
+        max_bytes: 10485760
+        symlinks: true
+    
+        multiline:
+          pattern: '^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}'
+          negate: true
+          match: after
+        tail_files: false
+    
+        backoff: 1s
+        max_backoff: 10s
+        backoff_factor: 2

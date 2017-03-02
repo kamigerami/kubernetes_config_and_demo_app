@@ -1,0 +1,1 @@
+export REPO=kubernetes; export IMAGE=heapster_grafana:v2.6.0;  docker pull ${REPO}/${IMAGE}; docker tag ${REPO}/${IMAGE}  registry.example.com:5000/${IMAGE}; docker push registry.example.com:5000/${IMAGE}

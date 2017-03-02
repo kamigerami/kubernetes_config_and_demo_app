@@ -1,0 +1,48 @@
+version: "2"
+
+services:
+  vote:
+    environment:
+      - REDIS_SERVICE_HOST=redis
+    build: ./vote
+    #image: kamigerami/vote_app
+    command: python app.py
+    volumes:
+     - ./vote:/app
+    ports:
+      - "5000:80"
+
+  redis:
+    image: redis:alpine
+    ports: ["6379"]
+
+  worker:
+    environment:
+      - DB_SERVICE_HOST=db
+      - POSTGRES_PASSWORD=pgsecret
+      - POSTGRES_USER=pguser
+      - POSTGRES_DB=pgdb
+    build: ./worker
+    #image: kamigerami/worker_app
+
+  db:
+    environment:
+      - POSTGRES_PASSWORD=pgsecret
+      - POSTGRES_USER=pguser
+      - POSTGRES_DB=pgdb
+    image: postgres:9.4
+
+  result:
+    environment:
+      - DB_SERVICE_HOST=db
+      - POSTGRES_PASSWORD=pgsecret
+      - POSTGRES_USER=pguser
+      - POSTGRES_DB=pgdb
+    build: ./result
+    #image: kamigerami/result_app
+    command: nodemon --debug server.js
+    volumes:
+      - ./result:/app
+    ports:
+      - "5111:80"
+      - "5858:5858"

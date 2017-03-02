@@ -1,0 +1,73 @@
+
+CLEAN UP
+
+kubectl delete svc --namespace=vote-app db redis result vote
+kubectl delete deployments db redis result vote worker --namespace=vote-app
+
+
+
+
+
+###############    DEMO #####################
+
+dashboard : http://kubernetes.example.com
+cockpit :   http://cockpit.example.com
+vote :      http://vote.example.com
+result:     http://result.example.com
+
+
+
+kubectl get svc,deployments,rc,rs,pod --namespace=kube-system
+kubectl get svc,deployments,rc,rs,pod --namespace=vote-app
+kubectl get svc,deployments,rc,rs,pod --namespace=default
+
+
+## DEPLOY APP
+kubectl get deployments,svc,rs,pods --namespace=vote-app
+kubectl create -f  "https://bitbucket.example.com/users/kamger/repos/kubernetes/browse/voting-app/vote-app-default.yaml?at=0bb94161a131df5a1cf69a7409857fe375f75d72&raw" --record
+
+
+
+
+# SCALE
+kubectl scale --replicas=3 --namespace=vote-app deployments/result deployments/vote
+
+# HISTORY
+
+kubectl rollout history deployment/vote --namespace=vote-app
+
+## UPGRADE
+
+kubectl set image deployment/vote  vote=registry.example.com:5000/vote_app:2.0  --namespace=vote-app
+kubectl set image deployment/result result=registry.example.com:5000/result_app:2.0  --namespace=vote-app
+
+## HISTORY AGAIN
+
+kubectl rollout history deployment/vote --namespace=vote-app
+kubectl rollout history deployment/result --namespace=vote-app
+
+
+### ROLLBACK
+
+kubectl rollout undo deployment/result --namespace=vote-app
+kubectl rollout undo deployment/vote --namespace=vote-app
+
+
+### UPGRADE HOST - DRAIN NODE
+
+kubectl get nodes
+kubectl drain url2u.example.com --force --ignore-daemonsets
+
+## SCALE OUT AGAIN
+kubectl scale --replicas=6 --namespace=vote-app deployments/result deployments/vote
+
+
+### UNCORDON NODE AGAIN
+kubectl uncordon url2u.example.com
+
+## SCALE OUT AGAIN
+kubectl scale --replicas=30 --namespace=vote-app deployments/result deployments/vote
+
+
+watch -n1 -d kubectl get nodes
+while true; do curl -s http://vote.example.com | egrep  "[0-9a-z]{5}$"; sleep 1; done

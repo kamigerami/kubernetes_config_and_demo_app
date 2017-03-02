@@ -1,0 +1,61 @@
+node {
+  stage ('check-out') {
+checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '37789ad3-30cb-4aef-9218-3b05a6f5958e', url: 'ssh://git@stash.example.com:7999/~kamger/kubernetes.git']]])
+  }
+
+  stage ('Destroy old environments') {
+    echo 'Destroying old environments'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 delete namespace web-dev || /bin/true'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 delete namespace web-test || /bin/true'
+    sh 'sleep 60'
+  }
+  
+  stage ('Create env') {
+    echo 'Creating environment'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/namespaces'
+    sh 'sleep 10'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/secrets'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/setup_env/ingress-controller'
+    sh 'sleep 10'
+  }
+
+  stage ('Deploy dev') {
+    echo 'Deployar till dev'
+    sh 'NO_PROXY=.example.com kubectl -s https://url.example.com:443 create -f web_app/definition -R --token=$TOKEN_DEV --insecure-skip-tls-verify --namespace=web-dev'
+    sh 'sleep 30'
+  }
+
+  stage ('Test dev') {
+    echo 'Testar dev'
+    sh 'curl http://dev.example.com/web-app'
+  }
+
+  stage ('Deploy test') {
+    echo 'Deployar till test'
+    sh 'NO_PROXY=.example.com kubectl -s https://url.example.com:443 create -f web_app/definition -R --token=$TOKEN_TEST --insecure-skip-tls-verify --namespace=web-test'
+    sh 'sleep 30'
+  }
+   
+  stage ('Test test') {
+    echo 'testar test'
+    sh 'curl http://test.example.com/web-app'
+  }
+
+  stage ('Destroy old environments') {
+    def userInput
+    try {
+        userInput = input(
+                id: 'userInput', message: 'Delete test environments?', parameters: [
+                [$class: 'BooleanParameterDefinition', defaultValue: false, description: '', name: 'I know what I am doing!']
+        ])
+    } catch (err) {
+        def user = err.getCause()[0].getUser()
+        userInput = false
+        echo "Aborted by: [${user}]"
+    }
+    echo "DEPLOY: ${userInput}"
+    echo 'Destroying old environments'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 delete namespace web-dev'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 delete namespace web-test'
+  }
+}

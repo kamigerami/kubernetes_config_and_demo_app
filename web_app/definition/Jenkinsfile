@@ -1,0 +1,28 @@
+node {
+  stage ('check-out') {
+checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '37789ad3-30cb-4aef-9218-3b05a6f5958e', url: 'ssh://git@stash.example.com:7999/~kamger/kubernetes.git']]])
+  }
+
+  stage ('Deploy dev') {
+    echo 'Deployar till dev'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/definition -R --namespace=web-dev'
+    sleep 10
+  }
+
+  stage ('Test dev') {
+    echo 'Testar dev'
+    sh 'curl -k http://dev.example.com/web-app'
+  }
+
+  stage ('Deploy test') {
+    echo 'Deployar till test'
+    sh 'NO_PROXY=.example.com kubectl -s http://url.example.com:8080 create -f web_app/definition -R --namespace=web-test'
+    sleep 10
+  }
+   
+  stage ('Test test') {
+    echo 'testar test'
+    sh 'curl -v http://test.example.com/web-app'
+  }
+
+}
